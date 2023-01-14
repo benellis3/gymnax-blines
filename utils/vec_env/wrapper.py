@@ -2,7 +2,7 @@ import gym
 import numpy as np
 
 from utils.vec_env.parallel import DummyVecEnv, SubprocVecEnv
-
+from utils.env_mask_wrapper import ObsMaskingWrapper
 from bsuite.environments import (
     catch,
     deep_sea,
@@ -14,7 +14,7 @@ from bsuite.environments import (
 )
 
 
-def make_env(env_name: str):
+def make_env(env_name: str, mask=False):
     if env_name in [
         "Catch-bsuite",
         "DeepSea-bsuite",
@@ -35,6 +35,8 @@ def make_env(env_name: str):
         env = make_minatar_env(env_name)
     else:
         env = gym.make(env_name)
+    if mask:
+        env = ObsMaskingWrapper(env)
     return env
 
 
