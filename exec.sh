@@ -71,15 +71,15 @@ then
     # Loop over environments and train agents with PPO/ES
     for env_name in $gym_envs $minatar_envs $bsuite_envs
     do
-        python train.py -config agents/$env_name/ppo.yaml --lrate 1e-04
-        python train.py -config agents/$env_name/ppo.yaml --lrate 1e-03
         python train.py -config agents/$env_name/ppo.yaml
-        python train.py -config agents/$env_name/es.yaml
     done
-
-    for env_name in $misc_envs
+    
+elif [[ "$1" == "train_mask_obs" ]]
+then
+    # Loop over environments and train agents with PPO/ES
+    for env_name in $minatar_envs
     do
-        python train.py -config configs/$env_name/es.yaml
+        python train.py -config agents/$env_name/ppo.yaml --mask-obs
     done
 
 elif [[ "$1" == "visualize" ]]

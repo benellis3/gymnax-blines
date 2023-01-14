@@ -81,9 +81,10 @@ if __name__ == "__main__":
     args, _ = parser.parse_known_args()
     config = load_config(args.config_fname, args.seed_id, args.lrate)
     wandb.init(config=config)
-    main(
-        config.train_config,
-        mle_log=None,
-        log_ext=str(args.lrate) if args.lrate != 5e-04 else "",
-        mask_obs=args.mask_obs,
-    )
+    with jax.disable_jit(True):
+        main(
+            config.train_config,
+            mle_log=None,
+            log_ext=str(args.lrate) if args.lrate != 5e-04 else "",
+            mask_obs=args.mask_obs,
+        )

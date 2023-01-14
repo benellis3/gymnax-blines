@@ -14,11 +14,11 @@ import wandb
 from utils.env_mask_wrapper import ObsMaskingWrapper
 
 
-def make(env, mask_obs=False, **env_kwargs):
-    env = gymnax.make(env, **env_kwargs)
+def make(env, mask_obs=False, p=0.2, **env_kwargs):
+    env, env_params = gymnax.make(env, **env_kwargs)
     if mask_obs:
-        env = ObsMaskingWrapper(env)
-    return env
+        env = ObsMaskingWrapper(env, p=p)
+    return env, env_params
 
 
 class BatchManager:
@@ -109,10 +109,10 @@ class BatchManager:
 
 
 class RolloutManager(object):
-    def __init__(self, model, env_name, env_kwargs, env_params, mask_obs=False):
+    def __init__(self, model, env_name, env_kwargs, env_params, mask_obs=False, p=0):
         # Setup functionalities for vectorized batch rollout
         self.env_name = env_name
-        self.env, self.env_params = make(env_name, **env_kwargs)
+        self.env, self.env_params = make(env_name, mask_obs=mask_obs, p=p, **env_kwargs)
         self.env_params = self.env_params.replace(**env_params)
         self.observation_space = self.env.observation_space(self.env_params)
         self.action_size = self.env.action_space(self.env_params).shape
@@ -223,7 +223,7 @@ def train_ppo(rng, config, model, params, mle_log, mask_obs=False):
     )
     # Setup the rollout manager -> Collects data in vmapped-fashion over envs
     rollout_manager = RolloutManager(
-        model, config.env_name, config.env_kwargs, config.env_params, mask_obs=mask_obs
+        model, config.env_name, config.env_kwargs, config.env_params, mask_obs=mask_obs, p=config.p
     )
 
     batch_manager = BatchManager(
@@ -290,7 +290,7 @@ def train_ppo(rng, config, model, params, mle_log, mask_obs=False):
                 config.critic_coeff,
                 rng_update,
             )
-            wandb.log(metric_dict)
+            # wandb.log(metric_dict)
             batch = batch_manager.reset()
 
         if (step + 1) % config.evaluate_every_epochs == 0:
@@ -304,7 +304,7 @@ def train_ppo(rng, config, model, params, mle_log, mask_obs=False):
             log_return.append(rewards)
             t.set_description(f"R: {str(rewards)}")
             t.refresh()
-
+            wandb.log({"return": rewards, "steps": total_steps})
             if mle_log is not None:
                 mle_log.update(
                     {"num_steps": total_steps},
@@ -391,7 +391,7 @@ def update(
     size_minibatch = size_batch // n_minibatch
     idxes = jnp.arange(num_envs * n_steps)
     avg_metrics_dict = defaultdict(int)
-
+    import pdb; pdb.set_trace()
     for _ in range(epoch_ppo):
         idxes = jax.random.permutation(rng, idxes)
         idxes_list = [
