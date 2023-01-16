@@ -77,11 +77,19 @@ if __name__ == "__main__":
         default=False,
         help="If true will randomly sample a mask for the observation",
     )
+    parser.add_argument(
+        "-no-wandb",
+        "--no-wandb",
+        action="store_true",
+        default=False,
+        help="If true will disable wandb logging",
+    )
 
     args, _ = parser.parse_known_args()
     config = load_config(args.config_fname, args.seed_id, args.lrate)
-    wandb.init(config=config)
-    with jax.disable_jit(True):
+    mode = "disabled" if args.no_wandb else "online"
+    wandb.init(config=config, mode=mode)
+    with jax.disable_jit(False):
         main(
             config.train_config,
             mle_log=None,
