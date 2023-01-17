@@ -513,9 +513,10 @@ def train_ppo(rng, config, model, params, mle_log, mask_obs=False):
                     batch.target, batch.values_old, masks, plr_mask
                 )
             batch = batch_manager.reset()
-            rng_reset, *brngs = jax.random.split(rng_reset, config.num_train_envs + 1)
-            brngs = jnp.array(brngs)
-            plr_mask, masks, obs, state = rollout_manager.batch_reset(brngs)
+            if config.use_plr:
+                rng_reset, *brngs = jax.random.split(rng_reset, config.num_train_envs + 1)
+                brngs = jnp.array(brngs)
+                plr_mask, masks, obs, state = rollout_manager.batch_reset(brngs)
 
         if (step + 1) % config.evaluate_every_epochs == 0:
             rng, rng_eval = jax.random.split(rng)
@@ -624,8 +625,7 @@ def update(
     plr_mask = jnp.repeat(jnp.expand_dims(plr_mask, -1), n_steps, axis=1).reshape((-1,))
     avg_metrics_dict = defaultdict(int)
     for _ in range(epoch_ppo):
-        rng, subrng = jax.random.split(rng)
-        idxes = jax.random.permutation(subrng, idxes)
+        idxes = jax.random.permutation(rng, idxes)
         idxes_list = [
             idxes[start : start + size_minibatch]
             for start in jnp.arange(0, size_batch, size_minibatch)

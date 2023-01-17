@@ -88,6 +88,7 @@ if __name__ == "__main__":
     args, _ = parser.parse_known_args()
     config = load_config(args.config_fname, args.seed_id, args.lrate)
     mode = "disabled" if args.no_wandb else "online"
+    config["mask_obs"] = args.mask_obs
     wandb.init(config=config, mode=mode)
     with jax.disable_jit(False):
         main(

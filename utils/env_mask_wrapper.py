@@ -86,7 +86,7 @@ class ObsMaskingWrapper(environment.Environment):
 
     def _mask_obs(self, obs: chex.Array, state: EnvState):
         return jnp.where(
-            state.mask > 0, jnp.zeros(shape=self.obs_shape, dtype=obs.dtype), obs
+            state.mask > 0, -jnp.ones(shape=self.obs_shape, dtype=obs.dtype), obs
         )
 
     def is_terminal(self):

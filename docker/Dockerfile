@@ -57,7 +57,7 @@ RUN ~/venv/bin/python3 -m pip install --upgrade pip
 # Install JAX
 RUN . /home/duser/venv/bin/activate && pip3 install --upgrade "jax[cuda11_cudnn82]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html  
 RUN . /home/duser/venv/bin/activate && pip3 install flax distrax
-RUN . /home/duser/venv/bin/activate && pip3 install matplotlib wandb dm-env optax chex pyyaml
+RUN . /home/duser/venv/bin/activate && pip3 install matplotlib wandb dm-env optax chex pyyaml dotmap tqdm
 RUN . /home/duser/venv/bin/activate && pip3 install git+https://github.com/deepmind/dm-haiku evosax
 RUN . /home/duser/venv/bin/activate && pip3 install --upgrade gym gymnax
 # WANDB

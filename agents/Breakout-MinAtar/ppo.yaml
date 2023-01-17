@@ -21,7 +21,7 @@ train_config:
   gae_lambda: 0.95 # "GAE lambda"
   entropy_coeff: 0.01 # "Entropy loss coefficient"
   critic_coeff: 0.5  # "Value loss coefficient"
-  p: 0.25
+  p: 0.1
 
   network_name: "Categorical-MLP"
   network_config:
