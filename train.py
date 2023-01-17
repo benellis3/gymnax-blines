@@ -4,7 +4,7 @@ from utils.models import get_model_ready
 from utils.helpers import load_config, save_pkl_object
 
 
-def main(config, mle_log, log_ext="", mask_obs=False):
+def main(config, mle_log, log_ext="", mask_obs=False, mask_eval=False):
     """Run training with ES or PPO. Store logs and agent ckpt."""
     rng = jax.random.PRNGKey(config.seed_id)
     # Setup the model architecture
@@ -18,7 +18,6 @@ def main(config, mle_log, log_ext="", mask_obs=False):
         from utils.ppo import train_ppo as train_fn
     else:
         raise ValueError("Unknown train_type. Has to be in ('ES', 'PPO').")
-
     # Log and store the results.
     log_steps, log_return, network_ckpt = train_fn(
         rng, config, model, params, mle_log, mask_obs=mask_obs
@@ -33,7 +32,7 @@ def main(config, mle_log, log_ext="", mask_obs=False):
 
     save_pkl_object(
         data_to_store,
-        f"agents/{config.env_name}/{config.train_type.lower()}{log_ext}.pkl",
+        f"agents/{config.env_name}/{config.train_type.lower()}{log_ext}mask_obs={config.mask_obs}eval_masked={config.mask_eval}.pkl",
     )
 
 
@@ -78,6 +77,13 @@ if __name__ == "__main__":
         help="If true will randomly sample a mask for the observation",
     )
     parser.add_argument(
+        "-mask-eval",
+        "--mask-eval",
+        action="store_true",
+        default=False,
+        help="Whether to mask at test time"
+    )
+    parser.add_argument(
         "-no-wandb",
         "--no-wandb",
         action="store_true",
@@ -85,10 +91,13 @@ if __name__ == "__main__":
         help="If true will disable wandb logging",
     )
 
+
     args, _ = parser.parse_known_args()
     config = load_config(args.config_fname, args.seed_id, args.lrate)
     mode = "disabled" if args.no_wandb else "online"
+
     config["mask_obs"] = args.mask_obs
+    config["mask_eval"] = args.mask_eval
     wandb.init(config=config, mode=mode)
     with jax.disable_jit(False):
         main(
@@ -96,4 +105,5 @@ if __name__ == "__main__":
             mle_log=None,
             log_ext=str(args.lrate) if args.lrate != 5e-04 else "",
             mask_obs=args.mask_obs,
+            mask_eval=args.mask_eval
         )

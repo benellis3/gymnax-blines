@@ -228,6 +228,7 @@ class RolloutManager(object):
         env_params,
         eval_env_names=None,
         mask_obs=False,
+        mask_eval=False,
         p=0,
         use_plr=False,
         plr_prob=0.5,
@@ -239,10 +240,11 @@ class RolloutManager(object):
         self.env_params = self.env_params.replace(**env_params)
 
         if not eval_env_names:
+            eval_env, eval_params = make(env_name, mask_obs=mask_eval, p=p, **env_kwargs)
             self.eval_envs = [
-                self.env,
+                eval_env
             ]
-            self.eval_env_params = [self.env_params]
+            self.eval_env_params = [eval_params]
         else:
             self.eval_envs = []
             self.eval_env_params = []
@@ -271,23 +273,27 @@ class RolloutManager(object):
         action = pi.sample(seed=rng)
         log_prob = pi.log_prob(action)
         return action, log_prob, value[:, 0], rng
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def batch_reset(self, keys):
+        return self._batch_reset(self.env, self.env_params, keys)
 
-    @partial(jax.jit, static_argnums=(0, 2))
-    def batch_reset(self, keys, evaluate=False):
+    @partial(jax.jit, static_argnums=(0, 1))
+    def _batch_reset(self, env, env_params, keys):
         # choose which envs will be masked and which won't
         if self.use_plr and not evaluate:
             keys, subkeys = split_n_keys(keys)
-            obs_re, state_re = jax.vmap(self.env.reset, in_axes=(0, None))(
-                subkeys, self.env_params
+            obs_re, state_re = jax.vmap(env.reset, in_axes=(0, None))(
+                subkeys, env_params
             )
             keys, subkeys = split_n_keys(keys)
             masks = jax.vmap(self.level_buffer.sample, in_axes=(0, None))(
-                subkeys, self.env_params
+                subkeys, env_params
             )
 
             keys, subkeys = split_n_keys(keys)
-            obs_plr, state_plr = jax.vmap(self.env.reset_mask, in_axes=(0, None, 0))(
-                subkeys, self.env_params, masks
+            obs_plr, state_plr = jax.vmap(env.reset_mask, in_axes=(0, None, 0))(
+                subkeys, env_params, masks
             )
             # sample which ones will be reset which way
             plr_mask = jax.random.choice(
@@ -300,8 +306,8 @@ class RolloutManager(object):
             state = jnp.where(plr_mask > 0, state_plr, state_re)
 
         else:
-            obs, state = jax.vmap(self.env.reset, in_axes=(0, None))(
-                jnp.array(keys), self.env_params
+            obs, state = jax.vmap(env.reset, in_axes=(0, None))(
+                jnp.array(keys), env_params
             )
             plr_mask = jnp.ones(shape=(len(keys),))
             masks = jnp.zeros_like(obs)
@@ -311,7 +317,7 @@ class RolloutManager(object):
     def batch_step(self, keys, state, action):
         return self._batch_step(self.env, self.env_params, keys, state, action)
 
-    @partial(jax.jit, static_argnums=(0, 1, 2))
+    @partial(jax.jit, static_argnums=(0, 1))
     def _batch_step(self, env, env_params, keys, state, action):
         if self.use_plr:
             return jax.vmap(env.step_mask, in_axes=(0, 0, 0, None))(
@@ -348,8 +354,8 @@ class RolloutManager(object):
         """Rollout an episode with lax.scan."""
         # Reset the environment
         rng_reset, rng_episode = jax.random.split(rng_input)
-        _, _, obs, state = self.batch_reset(
-            jax.random.split(rng_reset, num_envs), evaluate=True
+        _, _, obs, state = self._batch_reset(
+            env, env_params, jax.random.split(rng_reset, num_envs)
         )
 
         def policy_step(state_input, _):
@@ -406,7 +412,7 @@ def policy(
     return value, pi
 
 
-def train_ppo(rng, config, model, params, mle_log, mask_obs=False):
+def train_ppo(rng, config, model, params, mle_log, mask_obs=False, mask_eval=False):
     """Training loop for PPO based on https://github.com/bmazoure/ppo_jax."""
     num_total_epochs = int(config.num_train_steps // config.num_train_envs + 1)
     num_steps_warm_up = int(config.num_train_steps * config.lr_warmup)
@@ -437,6 +443,7 @@ def train_ppo(rng, config, model, params, mle_log, mask_obs=False):
         p=config.p,
         use_plr=config.use_plr,
         plr_prob=config.plr_prob,
+        mask_eval=mask_eval,
     )
 
     batch_manager = BatchManager(

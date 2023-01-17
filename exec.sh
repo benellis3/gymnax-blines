@@ -72,8 +72,12 @@ then
     for env_name in $minatar_envs
     do
         python train.py -config agents/$env_name/ppo.yaml -seed 0 &
+
+        python train.py -config agents/$env_name/ppo.yaml -seed 0 --mask-eval &
         python train.py -config agents/$env_name/ppo.yaml -seed 1 &
+        python train.py -config agents/$env_name/ppo.yaml -seed 1 --mask-eval &
         python train.py -config agents/$env_name/ppo.yaml -seed 2 &
+        python train.py -config agents/$env_name/ppo.yaml -seed 2 --mask-eval&
 
     done
     
@@ -83,8 +87,11 @@ then
     for env_name in $minatar_envs
     do
         python train.py -config agents/$env_name/ppo.yaml -seed 0 --mask-obs &
+        python train.py -config agents/$env_name/ppo.yaml -seed 0 --mask-obs --mask-eval &
         python train.py -config agents/$env_name/ppo.yaml -seed 1 --mask-obs &
+        python train.py -config agents/$env_name/ppo.yaml -seed 1 --mask-obs --mask-eval &
         python train.py -config agents/$env_name/ppo.yaml -seed 2 --mask-obs &
+        python train.py -config agents/$env_name/ppo.yaml -seed 2 --mask-obs --mask-eval &
     done
 
 elif [[ "$1" == "visualize" ]]
