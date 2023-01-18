@@ -6,3 +6,5 @@ tqdm
 numpy
 matplotlib
 pyyaml
+gym
+tensorflow-probability
