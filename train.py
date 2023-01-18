@@ -20,7 +20,7 @@ def main(config, mle_log, log_ext="", mask_obs=False, mask_eval=False):
         raise ValueError("Unknown train_type. Has to be in ('ES', 'PPO').")
     # Log and store the results.
     log_steps, log_return, network_ckpt = train_fn(
-        rng, config, model, params, mle_log, mask_obs=mask_obs
+        rng, config, model, params, mle_log, mask_obs=mask_obs, mask_eval=mask_eval
     )
 
     data_to_store = {
@@ -32,7 +32,7 @@ def main(config, mle_log, log_ext="", mask_obs=False, mask_eval=False):
 
     save_pkl_object(
         data_to_store,
-        f"agents/{config.env_name}/{config.train_type.lower()}{log_ext}mask_obs={config.mask_obs}eval_masked={config.mask_eval}.pkl",
+        f"agents/{config.env_name}/{config.train_type.lower()}{log_ext}mask_obs={mask_obs}:eval_masked={mask_eval}.pkl",
     )
 
 
