@@ -8,3 +8,5 @@ matplotlib
 pyyaml
 gym
 tensorflow-probability
+wandb
+seaborn

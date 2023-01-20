@@ -4,6 +4,7 @@ import gymnax
 from gymnax.visualize import Visualizer
 from utils.models import get_model_ready
 from utils.helpers import load_pkl_object, load_config
+from utils.masked_visualizer import MaskedVisualizer
 
 
 def load_neural_network(config, agent_path):
@@ -82,6 +83,21 @@ if __name__ == "__main__":
         default="CartPole-v1",
         help="Environment name.",
     )
+    parser.add_argument(
+        "-p",
+        "--mask_prob",
+        type=float,
+        default=-1,
+        help="Mask probability",
+    )
+
+    parser.add_argument(
+        "--show",
+        action="store_true",
+        default=False,
+        help="Show the gif",
+    )
+
     args, _ = parser.parse_known_args()
 
     base = f"agents/{args.env_name}/{args.train_type}"
@@ -92,13 +108,21 @@ if __name__ == "__main__":
         )
     else:
         model, model_params = None, None
+
     env, env_params = gymnax.make(
         configs.train_config.env_name,
         **configs.train_config.env_kwargs,
     )
+    if args.mask_prob >= 0:
+        from utils.env_mask_wrapper import ObsMaskingWrapper
+        env = ObsMaskingWrapper(env, p=args.mask_prob)
+
     env_params.replace(**configs.train_config.env_params)
     state_seq, cum_rewards = rollout_episode(
         env, env_params, model, model_params
     )
-    vis = Visualizer(env, env_params, state_seq, cum_rewards)
-    vis.animate(f"docs/{args.env_name}.gif")
+    if hasattr(env, "is_masked") and env.is_masked:
+        vis = MaskedVisualizer(env, env_params, state_seq, cum_rewards)
+    else:
+        vis = Visualizer(env, env_params, state_seq, cum_rewards)
+    vis.animate(f"docs/{args.env_name}.gif", view=args.show)

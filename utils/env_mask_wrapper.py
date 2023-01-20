@@ -18,6 +18,7 @@ class ObsMaskingWrapper(environment.Environment):
         self.env = env
         self.use_cutout = use_cutout
         self.p = p
+        self.is_masked = p > 0
 
     def __getattr__(self, attr):
         return getattr(self.env, attr)
@@ -113,7 +114,7 @@ class ObsMaskingWrapper(environment.Environment):
         return self._mask_obs(obs, state), state
 
     def get_obs(self, state):
-        return self._mask_obs(self.env.get_obs(state))
+        return self._mask_obs(self.env.get_obs(state.state), state)
 
     def _mask_obs(self, obs: chex.Array, state: EnvState):
         return jnp.where(
@@ -121,6 +122,9 @@ class ObsMaskingWrapper(environment.Environment):
             -jnp.ones(shape=self.obs_shape, dtype=obs.dtype),
             obs,
         )
+
+    def get_mask(self, state):
+        return state.mask
 
     def is_terminal(self):
         return self.env.is_terminal()
