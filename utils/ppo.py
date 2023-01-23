@@ -17,12 +17,13 @@ import wandb
 from utils.env_mask_wrapper import ObsMaskingWrapper
 
 
-def make(env, mask_obs=False, p=0.2, **env_kwargs):
+def make(env, mask_obs=False, wrapper_args={}, **env_kwargs):
     env, env_params = gymnax.make(env, **env_kwargs)
     if mask_obs:
-        env = ObsMaskingWrapper(env, p=p)
+        env = ObsMaskingWrapper(env, **wrapper_args)
     else:
-        env = ObsMaskingWrapper(env, p=0)
+        wrapper_args["p"] = 0
+        env = ObsMaskingWrapper(env, **wrapper_args)
     return env, env_params
 
 
@@ -230,26 +231,32 @@ class RolloutManager(object):
         mask_obs=False,
         mask_eval=False,
         p=0,
+        use_cutout=False,
         use_plr=False,
         plr_prob=0.5,
         **plr_kwargs,
     ):
         # Setup functionalities for vectorized batch rollout
         self.env_name = env_name
-        self.env, self.env_params = make(env_name, mask_obs=mask_obs, p=p, **env_kwargs)
+        wrapper_args = {"p": p, "use_cutout": use_cutout}
+        self.env, self.env_params = make(
+            env_name, mask_obs=mask_obs, wrapper_args=wrapper_args, **env_kwargs
+        )
         self.env_params = self.env_params.replace(**env_params)
 
         if not eval_env_names:
-            eval_env, eval_params = make(env_name, mask_obs=mask_eval, p=p, **env_kwargs)
-            self.eval_envs = [
-                eval_env
-            ]
+            eval_env, eval_params = make(
+                env_name, mask_obs=mask_eval, wrapper_args=wrapper_args, **env_kwargs
+            )
+            self.eval_envs = [eval_env]
             self.eval_env_params = [eval_params]
         else:
             self.eval_envs = []
             self.eval_env_params = []
             for eval_env_name in zip(eval_env_names):
-                eval_env, eval_env_params = make(eval_env_name, mask_obs=False, p=0)
+                eval_env, eval_env_params = make(
+                    eval_env_name, mask_obs=False, wrapper_args=wrapper_args
+                )
                 self.eval_envs.append(eval_env)
                 self.eval_env_params.append(eval_env_params)
         self.observation_space = self.env.observation_space(self.env_params)
@@ -273,7 +280,7 @@ class RolloutManager(object):
         action = pi.sample(seed=rng)
         log_prob = pi.log_prob(action)
         return action, log_prob, value[:, 0], rng
-    
+
     @partial(jax.jit, static_argnums=(0,))
     def batch_reset(self, keys):
         return self._batch_reset(self.env, self.env_params, keys)
@@ -281,7 +288,7 @@ class RolloutManager(object):
     @partial(jax.jit, static_argnums=(0, 1))
     def _batch_reset(self, env, env_params, keys):
         # choose which envs will be masked and which won't
-        if self.use_plr and not evaluate:
+        if self.use_plr:
             keys, subkeys = split_n_keys(keys)
             obs_re, state_re = jax.vmap(env.reset, in_axes=(0, None))(
                 subkeys, env_params
@@ -412,7 +419,16 @@ def policy(
     return value, pi
 
 
-def train_ppo(rng, config, model, params, mle_log, mask_obs=False, mask_eval=False):
+def train_ppo(
+    rng,
+    config,
+    model,
+    params,
+    mle_log,
+    mask_obs=False,
+    mask_eval=False,
+    use_cutout=False,
+):
     """Training loop for PPO based on https://github.com/bmazoure/ppo_jax."""
     num_total_epochs = int(config.num_train_steps // config.num_train_envs + 1)
     num_steps_warm_up = int(config.num_train_steps * config.lr_warmup)
@@ -441,6 +457,7 @@ def train_ppo(rng, config, model, params, mle_log, mask_obs=False, mask_eval=Fal
         config.env_params,
         mask_obs=mask_obs,
         p=config.p,
+        use_cutout=use_cutout,
         use_plr=config.use_plr,
         plr_prob=config.plr_prob,
         mask_eval=mask_eval,
@@ -521,7 +538,9 @@ def train_ppo(rng, config, model, params, mle_log, mask_obs=False, mask_eval=Fal
                 )
             batch = batch_manager.reset()
             if config.use_plr:
-                rng_reset, *brngs = jax.random.split(rng_reset, config.num_train_envs + 1)
+                rng_reset, *brngs = jax.random.split(
+                    rng_reset, config.num_train_envs + 1
+                )
                 brngs = jnp.array(brngs)
                 plr_mask, masks, obs, state = rollout_manager.batch_reset(brngs)
 
@@ -584,20 +603,18 @@ def loss_actor_and_critic(
     value_losses = jnp.square(value_pred - target)
     value_losses_clipped = jnp.square(value_pred_clipped - target)
     value_losses = 0.5 * jnp.maximum(value_losses, value_losses_clipped)
-    value_losses = jnp.where(plr_mask > 0, value_losses, 0.0)
-    value_loss = value_losses.sum() / plr_mask.sum()
+    value_loss = value_losses.mean(where=plr_mask)
 
     ratio = jnp.exp(log_prob - log_pi_old)
-    gae_mean = gae.sum() / plr_mask.sum()
-    gae = (gae - gae_mean) / (gae.std() + 1e-8)
+    gae_mean = gae.sum(where=plr_mask)
+    gae = (gae - gae_mean) / (gae.std(where=plr_mask) + 1e-8)
     loss_actor1 = ratio * gae
     loss_actor2 = jnp.clip(ratio, 1.0 - clip_eps, 1.0 + clip_eps) * gae
     loss_actor = -jnp.minimum(loss_actor1, loss_actor2)
-    loss_actor = jnp.where(plr_mask > 0, loss_actor, 0.0)
-    loss_actor = loss_actor.sum() / plr_mask.sum()
+    loss_actor = loss_actor.mean(where=plr_mask)
 
     entropy = jnp.where(plr_mask > 0, pi.entropy(), 0)
-    entropy = entropy.sum() / plr_mask.sum()
+    entropy = entropy.mean(where=plr_mask)
 
     total_loss = loss_actor + critic_coeff * value_loss - entropy_coeff * entropy
 
@@ -605,8 +622,8 @@ def loss_actor_and_critic(
         value_loss,
         loss_actor,
         entropy,
-        value_pred.sum() / plr_mask.sum(),
-        target.sum() / plr_mask.sum(),
+        value_pred.mean(where=plr_mask),
+        target.mean(where=plr_mask),
         gae_mean,
     )
 

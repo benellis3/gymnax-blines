@@ -14,8 +14,9 @@ class EnvState:
 
 
 class ObsMaskingWrapper(environment.Environment):
-    def __init__(self, env: environment.Environment, p: float):
+    def __init__(self, env: environment.Environment, use_cutout: bool, p: float):
         self.env = env
+        self.use_cutout = use_cutout
         self.p = p
 
     def __getattr__(self, attr):
@@ -55,15 +56,45 @@ class ObsMaskingWrapper(environment.Environment):
             info,
         )
 
+    def _sample_mask(self, key):
+        if self.use_cutout:
+            # sample a random 3x3 cutout of the observation
+            key, subkey = jax.random.split(key)
+            i = jax.random.randint(
+                subkey, shape=(), minval=1, maxval=self.obs_shape[0] + 1
+            )
+            key, subkey = jax.random.split(key)
+            j = jax.random.randint(
+                subkey, shape=(), minval=1, maxval=self.obs_shape[1] + 1
+            )
+            mask = jnp.zeros(
+                shape=(
+                    self.obs_shape[0] + 2,
+                    self.obs_shape[1] + 2,
+                    *self.obs_shape[2:],
+                ),
+                dtype=jnp.uint8,
+            )
+            mask = jax.lax.dynamic_update_slice(
+                mask,
+                jnp.ones((3, 3, *self.obs_shape[2:]), dtype=jnp.uint8),
+                (i - 1, j - 1, 0),
+            )
+        else:
+            key, subkey = jax.random.split(key)
+            shape = (self.obs_shape[0] + 2, self.obs_shape[1] + 2, *self.obs_shape[2:])
+            mask = jax.random.choice(
+                subkey,
+                jnp.arange(2),
+                shape=shape,
+                replace=True,
+                p=jnp.array([1.0 - self.p, self.p]),
+            )
+
+        return mask
+
     def reset_env(self, key, params):
-        key, subkey = jax.random.split(key)
-        mask = jax.random.choice(
-            subkey,
-            jnp.arange(2),
-            shape=self.obs_shape,
-            replace=True,
-            p=jnp.array([1.0 - self.p, self.p]),
-        )
+        mask = self._sample_mask(key)
         return self.reset_env_mask(key, params, mask)
 
     @partial(jax.jit, static_argnums=(0,))
@@ -86,7 +117,9 @@ class ObsMaskingWrapper(environment.Environment):
 
     def _mask_obs(self, obs: chex.Array, state: EnvState):
         return jnp.where(
-            state.mask > 0, -jnp.ones(shape=self.obs_shape, dtype=obs.dtype), obs
+            state.mask[1:-1, 1:-1] > 0,
+            -jnp.ones(shape=self.obs_shape, dtype=obs.dtype),
+            obs,
         )
 
     def is_terminal(self):
