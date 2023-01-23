@@ -37,6 +37,9 @@ def init_mask(axs, env, state):
         )
 
 
+# def update
+
+
 class MaskedVisualizer(Visualizer):
 
     def __init__(self, env, env_params, state_seq, reward_seq=None):
@@ -46,7 +49,7 @@ class MaskedVisualizer(Visualizer):
 
         n_channels = env.obs_shape[-1]
 
-        self.fig, self.axs = plt.subplots(1, n_channels+1, figsize=(6*(n_channels+1), 5))
+        self.fig, self.axs = plt.subplots(1, n_channels+1, figsize=(5*(n_channels+1), 5))
         self.ax = self.axs[0]
 
     def init(self):

@@ -15,7 +15,7 @@ def load_neural_network(config, agent_path):
     return model, params
 
 
-def rollout_episode(env, env_params, model, model_params, max_frames=200):
+def rollout_episode(env, env_params, model, model_params, max_frames=300):
     state_seq = []
     rng = jax.random.PRNGKey(0)
 
@@ -66,8 +66,15 @@ if __name__ == "__main__":
         "-train",
         "--train_type",
         type=str,
-        default="es",
+        default="ppo",
         help="es/ppo trained agent.",
+    )
+    parser.add_argument(
+        "-model",
+        "--model_name",
+        type=str,
+        default="",
+        help="File name of the model",
     )
     parser.add_argument(
         "-random",
@@ -92,19 +99,24 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--show",
+        "--view",
         action="store_true",
         default=False,
-        help="Show the gif",
+        help="View the gif",
     )
 
     args, _ = parser.parse_known_args()
 
     base = f"agents/{args.env_name}/{args.train_type}"
     configs = load_config(base + ".yaml")
+    if len(args.model_name) > 0:
+        model = f"agents/{args.env_name}/{args.model_name}"
+    else:
+        model = base
+
     if not args.random:
         model, model_params = load_neural_network(
-            configs.train_config, base + ".pkl"
+            configs.train_config, model + ".pkl"
         )
     else:
         model, model_params = None, None
@@ -125,4 +137,5 @@ if __name__ == "__main__":
         vis = MaskedVisualizer(env, env_params, state_seq, cum_rewards)
     else:
         vis = Visualizer(env, env_params, state_seq, cum_rewards)
-    vis.animate(f"docs/{args.env_name}.gif", view=args.show)
+    # vis.animate(f"docs/{args.env_name}-p{args.mask_prob}.gif", view=args.view)
+    vis.animate(f"docs/{args.env_name}-p{args.mask_prob}-baseline.gif", view=args.view)
