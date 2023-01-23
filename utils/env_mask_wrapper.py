@@ -18,7 +18,7 @@ class ObsMaskingWrapper(environment.Environment):
         self.env = env
         self.use_cutout = use_cutout
         self.p = p
-        self.is_masked = p > 0
+        self.is_masked = p > 0 or use_cutout
 
     def __getattr__(self, attr):
         return getattr(self.env, attr)

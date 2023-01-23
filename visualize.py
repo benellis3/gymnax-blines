@@ -15,9 +15,9 @@ def load_neural_network(config, agent_path):
     return model, params
 
 
-def rollout_episode(env, env_params, model, model_params, max_frames=300):
+def rollout_episode(env, env_params, model, model_params, max_frames=300, seed=0):
     state_seq = []
-    rng = jax.random.PRNGKey(0)
+    rng = jax.random.PRNGKey(seed)
 
     rng, rng_reset = jax.random.split(rng)
     obs, env_state = env.reset(rng_reset, env_params)
@@ -94,15 +94,28 @@ if __name__ == "__main__":
         "-p",
         "--mask_prob",
         type=float,
-        default=-1,
+        default=0,
         help="Mask probability",
     )
-
     parser.add_argument(
         "--view",
         action="store_true",
         default=False,
         help="View the gif",
+    )
+    parser.add_argument(
+        "-cutout",
+        "--use_cutout",
+        action="store_true",
+        default=False,
+        help="Whether to use cutout-style random masking",
+    )
+    parser.add_argument(
+        "-s",
+        "--seed",
+        type=int,
+        default=0,
+        help="Rollout seed",
     )
 
     args, _ = parser.parse_known_args()
@@ -127,15 +140,20 @@ if __name__ == "__main__":
     )
     if args.mask_prob >= 0:
         from utils.env_mask_wrapper import ObsMaskingWrapper
-        env = ObsMaskingWrapper(env, p=args.mask_prob)
+        env = ObsMaskingWrapper(env, use_cutout=args.use_cutout, p=args.mask_prob)
 
     env_params.replace(**configs.train_config.env_params)
     state_seq, cum_rewards = rollout_episode(
-        env, env_params, model, model_params
+        env, env_params, model, model_params, seed=args.seed
     )
     if hasattr(env, "is_masked") and env.is_masked:
         vis = MaskedVisualizer(env, env_params, state_seq, cum_rewards)
     else:
         vis = Visualizer(env, env_params, state_seq, cum_rewards)
     # vis.animate(f"docs/{args.env_name}-p{args.mask_prob}.gif", view=args.view)
-    vis.animate(f"docs/{args.env_name}-p{args.mask_prob}-baseline.gif", view=args.view)
+    gif_name = f"docs/{args.env_name}-{args.model_name}"
+    if args.use_cutout:
+        gif_name += f"_cutout_seed{args.seed}.gif"
+    else:
+        gif_name += f"_p{args.mask_prob}_seed{args.seed}.gif"
+    vis.animate(gif_name, view=args.view)

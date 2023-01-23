@@ -28,16 +28,16 @@ def init_mask(axs, env, state):
     # )
 
     for i in range(n_channels):
-        mask_slices[i] = mask[:,:,i] * (i+1) + 0.5
+        if env.use_cutout:
+            mask_slices[i] = mask[1:-1, 1:-1, i] * (i+1) + 0.5
+        else:
+            mask_slices[i] = mask[1:-1, 1:-1, i] * (i + 1) + 0.5
         axs[i+1].set_title(f"Channel {i+1} Mask")
         axs[i+1].set_xticks([])
         axs[i+1].set_yticks([])
         axs[i+1].imshow(
             mask_slices[i], cmap=cmap, norm=norm, interpolation="none"
         )
-
-
-# def update
 
 
 class MaskedVisualizer(Visualizer):
