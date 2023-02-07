@@ -1,14 +1,15 @@
 import jax
 from utils.models import get_model_ready
 from utils.helpers import load_config, save_pkl_object
+import wandb
 
 
-def main(config, mle_log, log_ext=""):
+def main(config, mle_log, log_ext="", zero_obs=False):
     """Run training with ES or PPO. Store logs and agent ckpt."""
     rng = jax.random.PRNGKey(config.seed_id)
     # Setup the model architecture
     rng, rng_init = jax.random.split(rng)
-    model, params = get_model_ready(rng_init, config)
+    model, params = get_model_ready(rng_init, config, zero_obs=zero_obs)
 
     # Run the training loop (either evosax ES or PPO)
     if config.train_type == "ES":
@@ -20,7 +21,7 @@ def main(config, mle_log, log_ext=""):
 
     # Log and store the results.
     log_steps, log_return, network_ckpt = train_fn(
-        rng, config, model, params, mle_log
+        rng, config, model, params, mle_log, zero_obs=zero_obs
     )
 
     data_to_store = {
@@ -69,10 +70,29 @@ if __name__ == "__main__":
         default=5e-04,
         help="Random seed of experiment.",
     )
-    args, _ = parser.parse_known_args()
-    config = load_config(args.config_fname, args.seed_id, args.lrate)
-    main(
-        config.train_config,
-        mle_log=None,
-        log_ext=str(args.lrate) if args.lrate != 5e-04 else "",
+    parser.add_argument(
+        "-no-wandb",
+        "--no-wandb",
+        action="store_true",
+        default=False,
+        help="If true will disable wandb logging",
     )
+    parser.add_argument(
+        "-zero-obs",
+        "--zero-obs",
+        action="store_true",
+        default=False,
+        help="Whether to zero out observations",
+    )
+
+    args, _ = parser.parse_known_args()
+    mode = "disabled" if args.no_wandb else "online"
+    config = load_config(args.config_fname, args.seed_id, args.lrate)
+    wandb.init(config=config, mode=mode)
+    with jax.disable_jit(False):
+        main(
+            config.train_config,
+            mle_log=None,
+            log_ext=str(args.lrate) if args.lrate != 5e-04 else "",
+            zero_obs=args.zero_obs,
+        )
