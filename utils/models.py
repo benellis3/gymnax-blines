@@ -10,8 +10,7 @@ from utils.open_loop_wrapper import OpenLoopWrapper
 def make(env, zero_obs=False, **env_kwargs):
     env, env_params = gymnax.make(env, **env_kwargs)
 
-    if zero_obs:
-        env = OpenLoopWrapper(env)
+    env = OpenLoopWrapper(env, zero_obs=zero_obs)
     return env, env_params
 
 
@@ -84,19 +83,16 @@ class CategoricalSeparateMLP(nn.Module):
 
     @nn.compact
     def __call__(self, obs, rng):
-        if self.zero_obs:
-            x = obs["obs"]
-            t = obs["t"]
-            last_action = obs["last_action"]
-            t = nn.Embed(
-                num_embeddings=self.num_t_embeddings, features=self.embedding_features
-            )(t)
-            last_action = nn.Embed(
-                num_embeddings=self.num_action_embeddings,
-                features=self.embedding_features,
-            )(last_action)
-        else:
-            x = obs
+        x = obs["obs"]
+        t = obs["t"]
+        last_action = obs["last_action"]
+        t = nn.Embed(
+            num_embeddings=self.num_t_embeddings, features=self.embedding_features
+        )(t)
+        last_action = nn.Embed(
+            num_embeddings=self.num_action_embeddings,
+            features=self.embedding_features,
+        )(last_action)
         # Flatten a single 2D image
         if self.flatten_2d and len(x.shape) == 2:
             x = x.reshape(-1)

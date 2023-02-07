@@ -16,8 +16,9 @@ class EnvState:
 
 
 class OpenLoopWrapper(environment.Environment):
-    def __init__(self, env: environment.Environment):
+    def __init__(self, env: environment.Environment, zero_obs=False):
         self.env = env
+        self.zero_obs = zero_obs
 
     def __getattr__(self, attr):
         return getattr(self.env, attr)
@@ -25,7 +26,8 @@ class OpenLoopWrapper(environment.Environment):
     def zero_out_obs(self, obs, state):
         t = state.state.time
         zero_obs = jnp.zeros_like(obs)
-        return OrderedDict(dict(t=t, obs=zero_obs, last_action=state.last_action))
+        ret_obs = jax.lax.cond(self.zero_obs, lambda: zero_obs, lambda: obs)
+        return OrderedDict(dict(t=t, obs=ret_obs, last_action=state.last_action))
 
     @property
     def default_params(self):

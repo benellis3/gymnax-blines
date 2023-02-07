@@ -17,8 +17,7 @@ from collections import OrderedDict
 def make(env, zero_obs=False, **env_kwargs):
     env, env_params = gymnax.make(env, **env_kwargs)
 
-    if zero_obs:
-        env = OpenLoopWrapper(env)
+    env = OpenLoopWrapper(env, zero_obs=zero_obs)
     return env, env_params
 
 
