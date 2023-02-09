@@ -8,17 +8,9 @@ import flax
 from flax.training.train_state import TrainState
 import numpy as np
 import tqdm
-import gymnax
-from utils.open_loop_wrapper import OpenLoopWrapper
+from utils.make import make
 import wandb
 from collections import OrderedDict
-
-
-def make(env, zero_obs=False, **env_kwargs):
-    env, env_params = gymnax.make(env, **env_kwargs)
-
-    env = OpenLoopWrapper(env, zero_obs=zero_obs)
-    return env, env_params
 
 
 class BatchManager:
@@ -57,7 +49,8 @@ class BatchManager:
                     ),
                     "t": jnp.empty((self.n_steps, self.num_envs), dtype=jnp.int32),
                     "last_action": jnp.empty(
-                        (self.n_steps, self.num_envs), dtype=jnp.int32
+                        (self.n_steps, self.num_envs, *self.action_size),
+                        dtype=jnp.int32,
                     ),
                 }
             ),

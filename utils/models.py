@@ -4,14 +4,7 @@ import flax.linen as nn
 from tensorflow_probability.substrates import jax as tfp
 from evosax import NetworkMapper
 import gymnax
-from utils.open_loop_wrapper import OpenLoopWrapper
-
-
-def make(env, zero_obs=False, **env_kwargs):
-    env, env_params = gymnax.make(env, **env_kwargs)
-
-    env = OpenLoopWrapper(env, zero_obs=zero_obs)
-    return env, env_params
+from utils.make import make
 
 
 def get_model_ready(rng, config, speed=False, zero_obs=False):
@@ -36,7 +29,11 @@ def get_model_ready(rng, config, speed=False, zero_obs=False):
             )
         elif config.network_name == "Gaussian-MLP":
             model = GaussianSeparateMLP(
-                **config.network_config, num_output_units=env.num_actions
+                **config.network_config,
+                num_output_units=env.num_actions,
+                num_t_embeddings=env_params.max_steps_in_episode,
+                embedding_features=8,
+                zero_obs=zero_obs,
             )
 
     # Only use feedforward MLP in speed evaluations!
@@ -167,12 +164,19 @@ class GaussianSeparateMLP(nn.Module):
     prefix_critic: str = "critic"
     min_std: float = 0.001
     model_name: str = "separate-mlp"
-    dict_obs: bool = False
+    zero_obs: bool = False
+    num_t_embeddings: int = 0
+    embedding_features: int = 0
 
     @nn.compact
-    def __call__(self, x, rng):
-        if self.dict_obs:
-            x = x["obs"]
+    def __call__(self, obs, rng):
+        x = obs["obs"]
+        t = obs["t"]
+        last_action = obs["last_action"]
+        t = nn.Embed(
+            num_embeddings=self.num_t_embeddings, features=self.embedding_features
+        )(t)
+        x = jnp.concatenate([x, last_action, t], axis=-1)
         x_v = nn.relu(
             nn.Dense(
                 self.num_hidden_units,

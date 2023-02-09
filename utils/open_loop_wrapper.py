@@ -15,6 +15,13 @@ class EnvState:
     last_action: ...
 
 
+def get_time(state, name):
+    if name == "Brax Wrapper":
+        return state.state.metrics["t"]
+    else:
+        return state.state.time
+
+
 class OpenLoopWrapper(environment.Environment):
     def __init__(self, env: environment.Environment, zero_obs=False):
         self.env = env
@@ -24,7 +31,7 @@ class OpenLoopWrapper(environment.Environment):
         return getattr(self.env, attr)
 
     def zero_out_obs(self, obs, state):
-        t = state.state.time
+        t = get_time(state, self.env.name)
         zero_obs = jnp.zeros_like(obs)
         ret_obs = jax.lax.cond(self.zero_obs, lambda: zero_obs, lambda: obs)
         return OrderedDict(dict(t=t, obs=ret_obs, last_action=state.last_action))
