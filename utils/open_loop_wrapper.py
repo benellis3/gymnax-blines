@@ -17,7 +17,7 @@ class EnvState:
 
 def get_time(state, name):
     if name == "Brax Wrapper":
-        return state.state.info["t"]
+        return state.state.info["steps"].astype(jnp.int32)
     else:
         return state.state.time
 
@@ -107,3 +107,19 @@ class OpenLoopWrapper(environment.Environment):
                 "last_action": self.action_space(params),
             }
         )
+
+
+class BraxOpenLoopWrapper(OpenLoopWrapper):
+    """Special Open Loop wrapper for brax environments because of their use
+    of wrappers rather than the default gymnax step function to reset environments.
+    """
+
+    def step(self, key: chex.PRNGKey, state: EnvState, action, params):
+        if params is None:
+            params = self.default_params
+        obs, state_, reward, done, info = self.env.step(
+            key, state.state, action, params
+        )
+        # zero out the obs
+        state = state.replace(state=state_, last_action=action)
+        return self.zero_out_obs(obs, state), state, -reward, done, info

@@ -1,12 +1,12 @@
 train_config:
   train_type: "PPO"
   num_train_steps: 25000000
-  evaluate_every_epochs: 10
+  evaluate_every_epochs: 1000
 
   env_name: "ant"
   env_kwargs: {}
   env_params: {}
-  num_test_rollouts: 32
+  num_test_rollouts: 164
 
   num_train_envs: 128
   max_grad_norm: 0.5

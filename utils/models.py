@@ -23,7 +23,7 @@ def get_model_ready(rng, config, speed=False, zero_obs=False):
                 **config.network_config,
                 num_output_units=env.num_actions,
                 num_action_embeddings=env.num_actions,
-                num_t_embeddings=env_params.max_steps_in_episode,
+                num_t_embeddings=env_params.max_steps_in_episode + 1,
                 embedding_features=8,
                 zero_obs=zero_obs,
             )
@@ -31,7 +31,7 @@ def get_model_ready(rng, config, speed=False, zero_obs=False):
             model = GaussianSeparateMLP(
                 **config.network_config,
                 num_output_units=env.num_actions,
-                num_t_embeddings=env_params.max_steps_in_episode,
+                num_t_embeddings=env_params.max_steps_in_episode + 1,
                 embedding_features=8,
                 zero_obs=zero_obs,
             )

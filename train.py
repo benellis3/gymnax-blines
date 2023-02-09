@@ -89,7 +89,7 @@ if __name__ == "__main__":
     mode = "disabled" if args.no_wandb else "online"
     config = load_config(args.config_fname, args.seed_id, args.lrate)
     wandb.init(config=config, mode=mode)
-    with jax.disable_jit(False):
+    with jax.disable_jit(True):
         main(
             config.train_config,
             mle_log=None,
