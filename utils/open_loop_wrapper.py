@@ -17,7 +17,7 @@ class EnvState:
 
 def get_time(state, name):
     if name == "Brax Wrapper":
-        return state.state.metrics["t"]
+        return state.state.info["t"]
     else:
         return state.state.time
 

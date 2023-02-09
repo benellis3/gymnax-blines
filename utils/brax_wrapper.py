@@ -33,7 +33,7 @@ class BraxEnvironmentWrapper(environment.Environment):
 
     def reset_env(self, key, params):
         state = self.env.reset(key)
-        state.metrics["t"] = 0
+        state.info["t"] = 0
         return state.obs, state
 
     def step_env(self, key, state, action, params):
@@ -41,9 +41,11 @@ class BraxEnvironmentWrapper(environment.Environment):
         action = jnp.tanh(action)
         state = self.env.step(state=state, action=action)
         reward = state.reward
-        done = state.done
+        state.info["t"] = state.info["t"] + 1
+        done = jnp.where(
+            state.info["t"] >= params.max_steps_in_episode, True, state.done
+        )
         obs = state.obs
-        state.metrics["t"] = state.metrics["t"] + 1
         return (
             lax.stop_gradient(obs),
             lax.stop_gradient(state),
