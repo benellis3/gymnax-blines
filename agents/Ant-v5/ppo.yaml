@@ -8,7 +8,7 @@ train_config:
   env_params: {}
   num_test_rollouts: 164
 
-  num_train_envs: 128
+  num_train_envs: 1024
   max_grad_norm: 0.5
   gamma: 0.999
   n_steps: 128
