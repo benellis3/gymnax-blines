@@ -44,7 +44,7 @@ class BraxEnvironmentWrapper(environment.Environment):
         return state.obs, state
 
     def step(self, key, state, action, params):
-        action = jnp.tanh(action)
+        action = lax.clamp(-1.0, action, 1.0)
         state = self.env.step(state, action)
         return (
             lax.stop_gradient(state.obs),

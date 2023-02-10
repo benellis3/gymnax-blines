@@ -2,6 +2,7 @@ from functools import partial
 import optax
 import jax
 import jax.numpy as jnp
+from jax import lax
 from typing import Any, Callable, Tuple
 from collections import defaultdict
 import flax
@@ -11,6 +12,11 @@ import tqdm
 from utils.make import make
 import wandb
 from collections import OrderedDict
+from tensorflow_probability.substrates import jax as tfp
+import chex
+from utils.brax_wrapper import BRAX_ENVS
+
+EPS = 1e-5
 
 
 class BatchManager:
@@ -120,7 +126,15 @@ class BatchManager:
 
 
 class RolloutManager(object):
-    def __init__(self, model, env_name, env_kwargs, env_params, zero_obs=False):
+    def __init__(
+        self,
+        model,
+        env_name,
+        env_kwargs,
+        env_params,
+        zero_obs=False,
+        clamp_action=False,
+    ):
         # Setup functionalities for vectorized batch rollout
         self.env_name = env_name
         self.env, self.env_params = make(env_name, zero_obs=zero_obs, **env_kwargs)
@@ -128,6 +142,7 @@ class RolloutManager(object):
         self.observation_space = self.env.observation_space(self.env_params)
         self.action_size = self.env.action_space(self.env_params).shape
         self.apply_fn = model.apply
+        self.clamp_action = clamp_action
         self.select_action = self.select_action_ppo
 
     @partial(jax.jit, static_argnums=0)
@@ -139,6 +154,11 @@ class RolloutManager(object):
     ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jax.random.PRNGKey]:
         value, pi = policy(train_state.apply_fn, train_state.params, obs, rng)
         action = pi.sample(seed=rng)
+        action = lax.cond(
+            self.clamp_action,
+            lambda: lax.clamp(-1.0 + EPS, action, 1.0 - EPS),
+            lambda: action,
+        )
         log_prob = pi.log_prob(action)
         return action, log_prob, value[:, 0], rng
 
@@ -234,7 +254,12 @@ def train_ppo(rng, config, model, params, mle_log, zero_obs=False):
     )
     # Setup the rollout manager -> Collects data in vmapped-fashion over envs
     rollout_manager = RolloutManager(
-        model, config.env_name, config.env_kwargs, config.env_params, zero_obs=zero_obs
+        model,
+        config.env_name,
+        config.env_kwargs,
+        config.env_params,
+        zero_obs=zero_obs,
+        clamp_action=(config.env_name in BRAX_ENVS),
     )
 
     batch_manager = BatchManager(
@@ -302,6 +327,7 @@ def train_ppo(rng, config, model, params, mle_log, zero_obs=False):
                 config.entropy_coeff,
                 config.critic_coeff,
                 rng_update,
+                clamp_action=config.env_name in BRAX_ENVS,
             )
             batch = batch_manager.reset()
 
@@ -342,6 +368,13 @@ def flatten_dims(x):
     return x.swapaxes(0, 1).reshape(x.shape[0] * x.shape[1], *x.shape[2:])
 
 
+def transformed_distribution_entropy(pi: tfp.distributions.TransformedDistribution):
+    base_entropy = jnp.expand_dims(pi.distribution.entropy(), 1)
+
+    base_entropy += pi.bijector.forward_log_det_jacobian(pi.distribution.loc)
+    return base_entropy
+
+
 def loss_actor_and_critic(
     params_model: flax.core.frozen_dict.FrozenDict,
     apply_fn: Callable[..., Any],
@@ -361,7 +394,7 @@ def loss_actor_and_critic(
 
     # TODO: Figure out why training without 0 breaks categorical model
     # And why with 0 breaks gaussian model pi
-    log_prob = pi.log_prob(action[..., -1])
+    log_prob = pi.log_prob(action)
 
     value_pred_clipped = value_old + (value_pred - value_old).clip(-clip_eps, clip_eps)
     value_losses = jnp.square(value_pred - target)
@@ -376,7 +409,12 @@ def loss_actor_and_critic(
     loss_actor = -jnp.minimum(loss_actor1, loss_actor2)
     loss_actor = loss_actor.mean()
 
-    entropy = pi.entropy().mean()
+    if isinstance(pi, tfp.distributions.TransformedDistribution):
+        entropy = transformed_distribution_entropy(
+            pi,
+        ).mean()
+    else:
+        entropy = pi.entropy().mean()
 
     total_loss = loss_actor + critic_coeff * value_loss - entropy_coeff * entropy
 
@@ -401,9 +439,15 @@ def update(
     entropy_coeff: float,
     critic_coeff: float,
     rng: jax.random.PRNGKey,
+    clamp_action: bool,
 ):
     """Perform multiple epochs of updates with multiple updates."""
     obs, action, log_pi_old, value, target, gae = batch
+    action = lax.cond(
+        clamp_action,
+        lambda: lax.clamp(-1.0 + EPS, action[..., -1], 1.0 - EPS),
+        lambda: action[..., -1],
+    )
     size_batch = num_envs * n_steps
     size_minibatch = size_batch // n_minibatch
     idxes = jnp.arange(num_envs * n_steps)

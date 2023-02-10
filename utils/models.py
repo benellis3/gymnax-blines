@@ -5,6 +5,8 @@ from tensorflow_probability.substrates import jax as tfp
 from evosax import NetworkMapper
 import gymnax
 from utils.make import make
+from utils.brax_wrapper import BRAX_ENVS
+from brax.training.distribution import NormalTanhDistribution
 
 
 def get_model_ready(rng, config, speed=False, zero_obs=False):
@@ -34,6 +36,7 @@ def get_model_ready(rng, config, speed=False, zero_obs=False):
                 num_t_embeddings=env_params.max_steps_in_episode + 1,
                 embedding_features=8,
                 zero_obs=zero_obs,
+                apply_normal_tanh=(config.env_name in BRAX_ENVS),
             )
 
     # Only use feedforward MLP in speed evaluations!
@@ -167,6 +170,7 @@ class GaussianSeparateMLP(nn.Module):
     zero_obs: bool = False
     num_t_embeddings: int = 0
     embedding_features: int = 0
+    apply_normal_tanh: bool = False
 
     @nn.compact
     def __call__(self, obs, rng):
@@ -225,6 +229,9 @@ class GaussianSeparateMLP(nn.Module):
             name=self.prefix_actor + "_fc_scale",
             bias_init=default_mlp_init(),
         )(x_a)
+
         scale = jax.nn.softplus(log_scale) + self.min_std
         pi = tfp.distributions.MultivariateNormalDiag(mu, scale)
+        if self.apply_normal_tanh:
+            pi = tfp.distributions.TransformedDistribution(pi, tfp.bijectors.Tanh())
         return v, pi

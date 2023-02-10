@@ -11,6 +11,10 @@ from matplotlib import pyplot as plt
 import wandb
 
 
+def evaluate_on_gymnax(path):
+    params = model.load_params(path)
+
+
 def train():
     env_name = "ant"  # @param ['ant', 'fetch', 'grasp', 'halfcheetah', 'hopper', 'humanoid', 'humanoidstandup', 'pusher', 'reacher', 'walker2d', 'grasp', 'ur5e']
     env = envs.get_environment(env_name=env_name)
