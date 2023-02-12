@@ -56,7 +56,7 @@ class BatchManager:
                     "t": jnp.empty((self.n_steps, self.num_envs), dtype=jnp.int32),
                     "last_action": jnp.empty(
                         (self.n_steps, self.num_envs, *self.action_size),
-                        dtype=jnp.int32,
+                        dtype=jnp.float32,
                     ),
                 }
             ),
@@ -446,8 +446,8 @@ def update(
     obs, action, log_pi_old, value, target, gae = batch
     action = lax.cond(
         clamp_action,
-        lambda: lax.clamp(-1.0 + EPS, action[..., -1], 1.0 - EPS),
-        lambda: action[..., -1],
+        lambda: lax.clamp(-1.0 + EPS, action, 1.0 - EPS),
+        lambda: action,
     )
     size_batch = num_envs * n_steps
     size_minibatch = size_batch // n_minibatch

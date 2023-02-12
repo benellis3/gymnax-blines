@@ -20,7 +20,7 @@ INF = 1e9
 
 @struct.dataclass
 class EnvParams:
-    max_steps_in_episode: int = 2
+    max_steps_in_episode: int = 1000
 
 
 class BraxEnvironmentWrapper(environment.Environment):
@@ -50,7 +50,7 @@ class BraxEnvironmentWrapper(environment.Environment):
             lax.stop_gradient(state.obs),
             lax.stop_gradient(state),
             state.reward.astype(jnp.float32),
-            state.done,
+            state.done.astype(jnp.uint8),
             state.info,
         )
 
