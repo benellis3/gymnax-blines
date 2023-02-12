@@ -122,4 +122,4 @@ class BraxOpenLoopWrapper(OpenLoopWrapper):
         )
         # zero out the obs
         state = state.replace(state=state_, last_action=action)
-        return self.zero_out_obs(obs, state), state, -reward, done, info
+        return self.zero_out_obs(obs, state), state, reward, done, info

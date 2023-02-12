@@ -141,7 +141,7 @@ class RolloutManager(object):
         self.env_params = self.env_params.replace(**env_params)
         self.observation_space = self.env.observation_space(self.env_params)
         self.action_size = self.env.action_space(self.env_params).shape
-        self.apply_fn = model.apply
+        # self.apply_fn = model.apply
         self.clamp_action = clamp_action
         self.select_action = self.select_action_ppo
 
@@ -329,6 +329,7 @@ def train_ppo(rng, config, model, params, mle_log, zero_obs=False):
                 rng_update,
                 clamp_action=config.env_name in BRAX_ENVS,
             )
+            t.set_description(f"Mean Action: {jnp.abs(batch['actions']).mean()}")
             batch = batch_manager.reset()
 
         if (step + 1) % config.evaluate_every_epochs == 0:
