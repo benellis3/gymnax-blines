@@ -123,6 +123,7 @@ class BatchManager:
             advantages.append(gae)
         advantages = advantages[::-1]
         advantages = jnp.array(advantages)
+        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
         return advantages, advantages + value[:-1]
 
 
@@ -405,8 +406,8 @@ def loss_actor_and_critic(
     value_loss = 0.5 * jnp.maximum(value_losses, value_losses_clipped).mean()
 
     ratio = jnp.exp(log_prob - log_pi_old)
-    gae_mean = gae.mean()
-    gae = (gae - gae_mean) / (gae.std() + 1e-8)
+    # gae_mean = gae.mean()
+    # gae = (gae - gae_mean) / (gae.std() + 1e-8)
     loss_actor1 = ratio * gae
     loss_actor2 = jnp.clip(ratio, 1.0 - clip_eps, 1.0 + clip_eps) * gae
     loss_actor = -jnp.minimum(loss_actor1, loss_actor2)
@@ -427,7 +428,7 @@ def loss_actor_and_critic(
         entropy,
         value_pred.mean(),
         target.mean(),
-        gae_mean,
+        gae.mean(),
     )
 
 
