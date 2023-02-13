@@ -4,7 +4,7 @@ from utils.helpers import load_config, save_pkl_object
 import wandb
 
 
-def main(config, mle_log, log_ext="", zero_obs=False):
+def main(config, mle_log, log_ext="", zero_obs=False, first_obs=False):
     """Run training with ES or PPO. Store logs and agent ckpt."""
     rng = jax.random.PRNGKey(config.seed_id)
     # Setup the model architecture
@@ -21,7 +21,7 @@ def main(config, mle_log, log_ext="", zero_obs=False):
 
     # Log and store the results.
     log_steps, log_return, network_ckpt = train_fn(
-        rng, config, model, params, mle_log, zero_obs=zero_obs
+        rng, config, model, params, mle_log, zero_obs=zero_obs, first_obs=first_obs
     )
 
     data_to_store = {
@@ -84,6 +84,13 @@ if __name__ == "__main__":
         default=False,
         help="Whether to zero out observations",
     )
+    parser.add_argument(
+        "-first-obs",
+        "--first-obs",
+        action="store_true",
+        default=False,
+        help="Whether to just pass the first observation"
+    )
 
     args, _ = parser.parse_known_args()
     mode = "disabled" if args.no_wandb else "online"
@@ -95,4 +102,5 @@ if __name__ == "__main__":
             mle_log=None,
             log_ext=str(args.lrate) if args.lrate != 5e-04 else "",
             zero_obs=args.zero_obs,
+            first_obs=args.first_obs
         )

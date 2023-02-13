@@ -135,11 +135,14 @@ class RolloutManager(object):
         env_kwargs,
         env_params,
         zero_obs=False,
+        first_obs=False,
         clamp_action=False,
     ):
         # Setup functionalities for vectorized batch rollout
         self.env_name = env_name
-        self.env, self.env_params = make(env_name, zero_obs=zero_obs, **env_kwargs)
+        self.env, self.env_params = make(
+            env_name, zero_obs=zero_obs, first_obs=first_obs, **env_kwargs
+        )
         self.env_params = self.env_params.replace(**env_params)
         self.observation_space = self.env.observation_space(self.env_params)
         self.action_size = self.env.action_space(self.env_params).shape
@@ -233,7 +236,7 @@ def policy(
     return value, pi
 
 
-def train_ppo(rng, config, model, params, mle_log, zero_obs=False):
+def train_ppo(rng, config, model, params, mle_log, zero_obs=False, first_obs=False):
     """Training loop for PPO based on https://github.com/bmazoure/ppo_jax."""
     num_total_epochs = int(config.num_train_steps // config.num_train_envs + 1)
     num_steps_warm_up = int(config.num_train_steps * config.lr_warmup)
@@ -261,6 +264,7 @@ def train_ppo(rng, config, model, params, mle_log, zero_obs=False):
         config.env_kwargs,
         config.env_params,
         zero_obs=zero_obs,
+        first_obs=first_obs,
         clamp_action=(config.env_name in BRAX_ENVS),
     )
 

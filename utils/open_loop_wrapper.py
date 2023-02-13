@@ -114,6 +114,10 @@ class BraxOpenLoopWrapper(OpenLoopWrapper):
     of wrappers rather than the default gymnax step function to reset environments.
     """
 
+    def __init__(self, env, zero_obs=False, first_obs=False):
+        super().__init__(env, zero_obs=zero_obs)
+        self.first_obs = first_obs
+
     def step(self, key: chex.PRNGKey, state: EnvState, action, params):
         if params is None:
             params = self.default_params
@@ -122,4 +126,7 @@ class BraxOpenLoopWrapper(OpenLoopWrapper):
         )
         # zero out the obs
         state = state.replace(state=state_, last_action=action)
+        z_obs = self.zero_out_obs(obs, state)
+        first_obs = state.state.info["first_obs"]
+        obs = lax.cond(self.first_obs, lambda: first_obs, lambda: z_obs)
         return self.zero_out_obs(obs, state), state, reward, done, info
