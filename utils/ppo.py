@@ -113,6 +113,7 @@ class BatchManager:
     def calculate_gae(
         self, value: jnp.ndarray, reward: jnp.ndarray, done: jnp.ndarray
     ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+        reward = (reward - reward.mean()) / (reward.std() + 1e-8)
         advantages = []
         gae = 0.0
         for t in reversed(range(len(reward) - 1)):
