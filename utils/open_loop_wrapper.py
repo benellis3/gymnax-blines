@@ -128,5 +128,8 @@ class BraxOpenLoopWrapper(OpenLoopWrapper):
         state = state.replace(state=state_, last_action=action)
         z_obs = self.zero_out_obs(obs, state)
         first_obs = state.state.info["first_obs"]
+        first_obs = OrderedDict(
+            dict(t=z_obs["t"], obs=first_obs, last_action=z_obs["last_action"])
+        )
         obs = lax.cond(self.first_obs, lambda: first_obs, lambda: z_obs)
-        return self.zero_out_obs(obs, state), state, reward, done, info
+        return obs, state, reward, done, info
