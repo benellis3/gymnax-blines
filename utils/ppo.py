@@ -329,6 +329,7 @@ def train_ppo(rng, config, model, params, mle_log, zero_obs=False):
                 rng_update,
                 clamp_action=config.env_name in BRAX_ENVS,
             )
+            wandb.log(metric_dict)
             t.set_description(f"Mean Action: {jnp.abs(batch['actions']).mean()}")
             batch = batch_manager.reset()
 
