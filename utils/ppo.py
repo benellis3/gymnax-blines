@@ -90,8 +90,10 @@ class BatchManager:
 
     @partial(jax.jit, static_argnums=0)
     def get(self, buffer):
-        reward_std = buffer["rewards"].std(axis=0)
-        rewards = buffer["rewards"] / (reward_std + EPS)
+        rewards = buffer["rewards"]
+
+        return_std = rewards.sum(axis=0).std()
+        rewards = rewards / (return_std + EPS)
         gae, target = self.calculate_gae(
             value=buffer["values_old"],
             reward=rewards,
