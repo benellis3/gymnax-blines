@@ -90,9 +90,11 @@ class BatchManager:
 
     @partial(jax.jit, static_argnums=0)
     def get(self, buffer):
+        reward_std = buffer["rewards"].std(axis=0)
+        rewards = buffer["rewards"] / (reward_std + EPS)
         gae, target = self.calculate_gae(
             value=buffer["values_old"],
-            reward=buffer["rewards"],
+            reward=rewards,
             done=buffer["dones"],
         )
         batch = (
@@ -113,7 +115,6 @@ class BatchManager:
     def calculate_gae(
         self, value: jnp.ndarray, reward: jnp.ndarray, done: jnp.ndarray
     ) -> Tuple[jnp.ndarray, jnp.ndarray]:
-        reward = (reward - reward.mean()) / (reward.std() + 1e-8)
         advantages = []
         gae = 0.0
         for t in reversed(range(len(reward) - 1)):
@@ -123,7 +124,6 @@ class BatchManager:
             advantages.append(gae)
         advantages = advantages[::-1]
         advantages = jnp.array(advantages)
-        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
         return advantages, advantages + value[:-1]
 
 
@@ -410,8 +410,8 @@ def loss_actor_and_critic(
     value_loss = 0.5 * jnp.maximum(value_losses, value_losses_clipped).mean()
 
     ratio = jnp.exp(log_prob - log_pi_old)
-    # gae_mean = gae.mean()
-    # gae = (gae - gae_mean) / (gae.std() + 1e-8)
+    gae_mean = gae.mean()
+    gae = (gae - gae_mean) / (gae.std() + 1e-8)
     loss_actor1 = ratio * gae
     loss_actor2 = jnp.clip(ratio, 1.0 - clip_eps, 1.0 + clip_eps) * gae
     loss_actor = -jnp.minimum(loss_actor1, loss_actor2)
@@ -432,7 +432,7 @@ def loss_actor_and_critic(
         entropy,
         value_pred.mean(),
         target.mean(),
-        gae.mean(),
+        gae_mean,
     )
 
 
